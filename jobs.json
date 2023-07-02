@@ -1,0 +1,79 @@
+[
+    {
+        "name": "matin 1",
+        "time": "07:50",
+        "parameters": {
+            "action1": "chambre.up",
+            "delay": 0,
+            "action2": "",
+            "weekday": true,
+            "weekend": false
+        }
+    },
+    {
+        "name": "matin 2",
+        "time": "08:10",
+        "parameters": {
+            "action1": "chambre.up, cuisine.up, fenetre.up, porte.up",
+            "delay": 6,
+            "action2": "porte.stop",
+            "weekday": true,
+            "weekend": false
+        }
+    },
+    {
+        "name": "matin 3",
+        "time": "09:00",
+        "parameters": {
+            "action1": "chambre.up, cuisine.up, fenetre.up, porte.up",
+            "delay": 6,
+            "action2": "porte.stop",
+            "weekday": false,
+            "weekend": true
+        }
+    },
+    {
+        "name": "midi 1",
+        "time": "12:00",
+        "parameters": {
+            "action1": "porte.up",
+            "delay": 0,
+            "action2": "",
+            "weekday": true,
+            "weekend": true
+        }
+    },
+    {
+        "name": "midi 2",
+        "time": "12:15",
+        "parameters": {
+            "action1": "fenetre.down",
+            "delay": 9,
+            "action2": "fenetre.stop",
+            "weekday": true,
+            "weekend": true
+        }
+    },
+    {
+        "name": "soir 1",
+        "time": "17:30",
+        "parameters": {
+            "action1": "fenetre.up",
+            "delay": 0,
+            "action2": "",
+            "weekday": true,
+            "weekend": true
+        }
+    },
+    {
+        "name": "soir 2",
+        "time": "21:30",
+        "parameters": {
+            "action1": "chambre.down, cuisine.down, fenetre.down, porte.down",
+            "delay": 17,
+            "action2": "fenetre.stop, porte.stop",
+            "weekday": true,
+            "weekend": true
+        }
+    }
+]

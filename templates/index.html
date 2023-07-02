@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Jobs List</title>
+</head>
+<body>
+    <h1>Jobs List</h1>
+    {% for job in jobs %}
+    <h2>Edit Job - {{ job.name }}</h2>
+    <form action="/add_job" method="post">
+        <input type="hidden" name="name" value="{{ job.name }}">
+        <label for="time">Time:</label>
+        <input type="text" name="time" value="{{ job.time }}" required>
+        <label for="weekday">Semaine:</label>
+        <input type="checkbox" name="weekday" {% if job.parameters.weekday %}checked{% endif %}>
+        <label for="weekend">Weekend:</label>
+        <input type="checkbox" name="weekend" {% if job.parameters.weekend %}checked{% endif %}><br>
+
+        <label for="action1">Action 1:</label>
+        <input type="text" name="action1" value="{{ job.parameters.action1 }}">
+        <label for="delay">Delais:</label>
+        <input type="number" name="delay" value="{{ job.parameters.delay }}">
+        <label for="action2">Action 2:</label>
+        <input type="text" name="action2" value="{{ job.parameters.action2 }}"><br>
+
+        <button type="submit">Update Job</button>
+        <button type="button" onclick="removeJob('{{ job.name }}')">Remove Job</button>
+    </form>
+    {% endfor %}
+
+    <h2>Add New Job</h2>
+    <form action="/add_job" method="post">
+        <label for="name">Name:</label>
+        <input type="text" name="name" required>
+        <label for="time">Time:</label>
+        <input type="text" name="time" required>
+        <label for="weekday">Semaine:</label>
+        <input type="checkbox" name="weekday">
+        <label for="weekend">Weekend:</label>
+        <input type="checkbox" name="weekend"><br>
+
+        <label for="action1">Action 1:</label>
+        <input type="text" name="action1">
+        <label for="delay">Delais:</label>
+        <input type="number" name="delay">
+        <label for="action2">Action 2:</label>
+        <input type="text" name="action2"><br>
+
+        <button type="submit">Add Job</button>
+    </form>
+
+    <script>
+        function removeJob(jobName) {
+            if (confirm("Are you sure you want to remove this job?")) {
+                const form = document.createElement("form");
+                form.method = "post";
+                form.action = "/remove_job";
+                const input = document.createElement("input");
+                input.type = "hidden";
+                input.name = "name";
+                input.value = jobName;
+                form.appendChild(input);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+    </script>
+</body>
+</html>
