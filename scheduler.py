@@ -12,8 +12,7 @@ import web
 json_data_file = "data.json"
 json_jobs_file = "jobs.json"
 
-scheduler_thread = None
-scheduler_thread_event = None
+scheduler_reset = None
 json_data = None
 device = None
 
@@ -93,59 +92,43 @@ def schedule_jobs(jobs):
     schedule.every().day.at("07:00").do(config_update)
 
 def run_scheduler(interval=1):
-    thread_event = threading.Event()
+    global scheduler_reset
+    scheduler_reset = threading.Event()
 
-    class ScheduleThread(threading.Thread):
-        @classmethod
-        def run(cls):
-            global json_data
-            global device
+    global json_data
+    global device
 
-            # Read data file and configure the device
-            json_data = read_data_from_json(json_data_file)
-            device = setup(json_data)
+    # Read data file and configure the device
+    json_data = read_data_from_json(json_data_file)
+    device = setup(json_data)
 
-            # Read jobs and configure scheduler
-            jobs = read_data_from_json(json_jobs_file)
-            schedule_jobs(jobs)
+    # Read jobs and configure scheduler
+    jobs = read_data_from_json(json_jobs_file)
+    schedule_jobs(jobs)
 
-            # Run scheduler
-            while not thread_event.is_set():
-                schedule.run_pending()
-                time.sleep(interval)
-            
-            # Cancel all jobs before exiting
-            schedule.clear()
-            print("Scheduler stopped")
+    # Run scheduler
+    while not scheduler_reset.is_set():
+        schedule.run_pending()
+        time.sleep(interval)
+    
+    # Cancel all jobs before exiting
+    schedule.clear()
+    print("Scheduler stopped")
 
-    thread = ScheduleThread()
-    thread.start()
-    return thread, thread_event
 
 def config_update():
     print("update config -> restart scheduler thread")
-    global scheduler_thread
-    global scheduler_thread_event
-    # Stop the background thread
-    scheduler_thread_event.set()
-    scheduler_thread.join()
+    global scheduler_reset
+    scheduler_reset.set()
 
-    # Start the background thread
-    scheduler_thread, scheduler_thread_event = run_scheduler()
 
 def main():
-    global scheduler_thread
-    global scheduler_thread_event
-
-    # Start the scheduler thread
-    scheduler_thread, scheduler_thread_event = run_scheduler()
-
     # Start the webserver
     web.start(config_update)
 
-    # wait forever
+    # Run the scheduler forever
     while(1):
-        time.sleep(100)
+        run_scheduler()
 
 
 if __name__ == "__main__":

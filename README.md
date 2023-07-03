@@ -9,7 +9,7 @@ It uses:
 
 ## Usage
 
-Simply launch the `sdheduler.py` file, it creates one thread for the web server (on port 8080) and one for the scheduler.
+Simply launch the `sdheduler.py` file, it creates one thread for the web server (on port 8080) and runs the scheduler in the main thread.
 
 ## Setup
 
