@@ -23,12 +23,12 @@ def setup(json_data):
             host = itm['host']
             mac = bytearray.fromhex(itm['mac'])
 
-            print(f"Setup {devtype}, {host}, {mac}")
+            print(f"Setup {devtype}, {host}, {mac}", flush=True)
             dev = broadlink.gendevice(devtype, (host, DEFAULT_PORT), mac)
             dev.auth()
             return dev
 
-    print ("Setup data not found")
+    print ("Setup data not found", flush=True)
     return None
 
 def get_signal(action):
@@ -37,21 +37,21 @@ def get_signal(action):
             data = bytearray.fromhex(''.join(itm['data'])) 
             return data
 
-    print (f"Data not found for '{action}'")
+    print (f"Data not found for '{action}'", flush=True)
     return None
 
 def send_single (action):
     if (not action):
-        print("Nothing to do")
+        print("Nothing to do", flush=True)
         return
 
     data = get_signal(action)
-    print (f"Send {action}")
+    print (f"Send {action}", flush=True)
     if data != None:
         device.send_data(data)
 
 def send_irdata(job_name, job_param):
-    print(f"Running '{job_name}' with parameters: {job_param}")
+    print(f"Running '{job_name}' with parameters: {job_param}", flush=True)
     action1 = re.split(r',\s*', job_param['action1'])
     action2 = re.split(r',\s*', job_param['action2'])
     delay = job_param['delay']
@@ -66,7 +66,7 @@ def send_irdata(job_name, job_param):
             send_single(action)
             time.sleep(0.5)
         # pause
-        print(f"Pause {delay}s")
+        print(f"Pause {delay}s", flush=True)
         time.sleep(delay)
         # action 2
         for action in action2:
@@ -113,11 +113,11 @@ def run_scheduler(interval=1):
     
     # Cancel all jobs before exiting
     schedule.clear()
-    print("Scheduler stopped")
+    print("Scheduler stopped", flush=True)
 
 
 def config_update():
-    print("update config -> restart scheduler thread")
+    print("update config -> restart scheduler thread", flush=True)
     global scheduler_reset
     scheduler_reset.set()
 

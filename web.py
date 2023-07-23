@@ -29,8 +29,8 @@ def home():
 
 @app.route('/add_job', methods=['POST'])
 def add_job():
-    print(f"request {request.form}")
-    print(f"check weekday {request.form.getlist('weekday')}-{bool(request.form.getlist('weekday'))}, weekend {request.form.getlist('weekend')}-{bool(request.form.getlist('weekend'))}")
+    print(f"request {request.form}", flush=True)
+    print(f"check weekday {request.form.getlist('weekday')}-{bool(request.form.getlist('weekday'))}, weekend {request.form.getlist('weekend')}-{bool(request.form.getlist('weekend'))}", flush=True)
     # Parse job details from the request
     job_name = request.form['name']
     job_time = request.form['time']
@@ -85,7 +85,7 @@ def remove_job():
     return home()
 
 def web_thread(callback = None):
-    print(f"set callback {callback}")
+    print(f"set callback {callback}", flush=True)
     if callback != None:
         global job_update_cb
         job_update_cb = callback
