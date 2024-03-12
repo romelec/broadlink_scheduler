@@ -1,16 +1,11 @@
-import json
-import schedule
+import json, schedule, web
 import datetime, time, re
 import threading
-
 import broadlink
-from broadlink.const import DEFAULT_PORT
-from broadlink.exceptions import ReadError, StorageError
-from dateutil import tz
-from datetime import datetime, timedelta, time, timezone
-from suntime import Sun, SunTimeException
 
-import web
+from broadlink.const import DEFAULT_PORT
+from dateutil import tz
+from suntime import Sun
 
 json_data_file = "data.json"
 json_jobs_file = "jobs.json"
