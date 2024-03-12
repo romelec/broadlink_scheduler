@@ -6,6 +6,9 @@ import threading
 import broadlink
 from broadlink.const import DEFAULT_PORT
 from broadlink.exceptions import ReadError, StorageError
+from dateutil import tz
+from datetime import datetime, timedelta, time, timezone
+from suntime import Sun, SunTimeException
 
 import web
 
@@ -16,7 +19,10 @@ scheduler_reset = None
 json_data = None
 device = None
 
-def setup(json_data):
+sun = None
+time_zone = None
+
+def setup_dev(json_data):
     for itm in json_data:
         if itm['name'] == "device":
             devtype = int(itm['devtype'], 0)
@@ -29,6 +35,20 @@ def setup(json_data):
             return dev
 
     print ("Setup data not found", flush=True)
+    return None
+
+def setup_sun(json_data):
+    global time_zone
+    for itm in json_data:
+        if itm['name'] == "location":
+            lat = itm['lat']
+            long = itm['long']
+            time_zone = tz.gettz(itm['timezone'])
+
+            sun = Sun(lat, long)
+            return sun
+
+    print ("Setup sun not found", flush=True)
     return None
 
 def get_signal(action):
@@ -85,6 +105,11 @@ def schedule_jobs(jobs):
         job_time = job['time']
         job_param = job.get('parameters', None)
 
+        if job_time == "sunset":
+            job_time = sun.get_sunset_time(time_zone=time_zone).strftime('%H:%M')
+        elif job_time == "sunrise":
+            job_time = sun.get_sunrise_time(time_zone=time_zone).strftime('%H:%M')
+
         print(f"Schedule job '{job_name}' at {job_time}: '{job_param}'")
         schedule.every().day.at(job_time).do(send_irdata, job_name, job_param)
 
@@ -97,10 +122,12 @@ def run_scheduler(interval=1):
 
     global json_data
     global device
+    global sun
 
     # Read data file and configure the device
     json_data = read_data_from_json(json_data_file)
-    device = setup(json_data)
+    device = setup_dev(json_data)
+    sun = setup_sun(json_data)
 
     # Read jobs and configure scheduler
     jobs = read_data_from_json(json_jobs_file)

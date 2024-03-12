@@ -52,5 +52,11 @@
         "devtype": "0x5213",
         "host" : "192.168.0.17",
         "mac" : "ec0baea05afb"
+    },
+    {
+        "name": "location",
+        "timezone": "Europe/Paris",
+        "lat": 43.3,
+        "long": 5.36
     }
 ]
