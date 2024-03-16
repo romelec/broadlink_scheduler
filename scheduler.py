@@ -1,8 +1,9 @@
 import json, schedule, web
-import datetime, time, re
+import time, re
 import threading
 import broadlink
 
+from datetime import datetime, timedelta
 from broadlink.const import DEFAULT_PORT
 from dateutil import tz
 from suntime import Sun
@@ -74,7 +75,7 @@ def send_irdata(job_name, job_param):
     weekend = job_param['weekend']
 
     # Execute depending of the day
-    week = datetime.datetime.today().isoweekday()
+    week = datetime.today().isoweekday()
     if (weekday and week <= 5) or (weekend and week > 5):
         # action 1
         for action in action1:
@@ -93,6 +94,17 @@ def read_data_from_json(json_file):
         data = json.load(f)
     return data
 
+def extract_time_offset(job_time):
+    # Extract the numeric value at the end of the string
+    match = re.search(r'([-+]?\d+)$', job_time)
+    if match:
+        time_offset = int(match.group(1))
+        if job_time[-1] == '-':
+            time_offset *= -1
+        return time_offset
+    else:
+        return 0
+
 def schedule_jobs(jobs):
     for job in jobs:
         # Schedule the job with the specified time and parameters
@@ -100,10 +112,12 @@ def schedule_jobs(jobs):
         job_time = job['time']
         job_param = job.get('parameters', None)
 
-        if job_time == "sunset":
-            job_time = sun.get_sunset_time(time_zone=time_zone).strftime('%H:%M')
-        elif job_time == "sunrise":
-            job_time = sun.get_sunrise_time(time_zone=time_zone).strftime('%H:%M')
+        if job_time.startswith("sunset"):
+            job_time = sun.get_sunset_time(time_zone=time_zone) + timedelta(minutes=extract_time_offset(job_time))
+            job_time = job_time.strftime('%H:%M')
+        elif job_time.startswith("sunrise"):
+            job_time = sun.get_sunrise_time(time_zone=time_zone) + timedelta(minutes=extract_time_offset(job_time))
+            job_time = job_time.strftime('%H:%M')
 
         print(f"Schedule job '{job_name}' at {job_time}: '{job_param}'")
         schedule.every().day.at(job_time).do(send_irdata, job_name, job_param)
