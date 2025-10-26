@@ -2,8 +2,26 @@
 <html>
 <head>
     <title>Jobs List</title>
+    <!-- Add Chosen CSS and JS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/chosen/1.8.7/chosen.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chosen/1.8.7/chosen.jquery.min.js"></script>
+    <style>
+        .chosen-container {
+            display: inline-block;
+            width: 300px !important;
+            margin: 5px;
+        }
+        .chosen-container-multi .chosen-choices {
+            padding: 5px;
+            border: 1px solid #ccc;
+        }
+    </style>
 </head>
 <body>
+    <div class="nav">
+        <b>Home</b> | <a href="/settings">Settings</a>
+    </div>
     <h1>Jobs List</h1>
     {% for job in jobs %}
     <h2>Edit Job - {{ job.name }}</h2>
@@ -17,11 +35,25 @@
         <input type="checkbox" name="weekend" {% if job.parameters.weekend %}checked{% endif %}><br>
 
         <label for="action1">Action 1:</label>
-        <input type="text" name="action1" value="{{ job.parameters.action1 }}">
+        <select name="action1" class="chosen-select" multiple>
+            {% for command in commands %}
+            <option value="{{ command }}" {% if command in job.parameters.action1 %}selected{% endif %}>
+                {{ command }}
+            </option>
+            {% endfor %}
+        </select>
+
         <label for="delay">Delais:</label>
         <input type="number" name="delay" value="{{ job.parameters.delay }}">
+
         <label for="action2">Action 2:</label>
-        <input type="text" name="action2" value="{{ job.parameters.action2 }}"><br>
+        <select name="action2" class="chosen-select" multiple>
+            {% for command in commands %}
+            <option value="{{ command }}" {% if command in job.parameters.action2 %}selected{% endif %}>
+                {{ command }}
+            </option>
+            {% endfor %}
+        </select><br>
 
         <button type="submit">Update Job</button>
         <button type="button" onclick="removeJob('{{ job.name }}')">Remove Job</button>
@@ -40,11 +72,21 @@
         <input type="checkbox" name="weekend"><br>
 
         <label for="action1">Action 1:</label>
-        <input type="text" name="action1">
+        <select name="action1" class="chosen-select" multiple>
+            {% for command in commands %}
+            <option value="{{ command }}">{{ command }}</option>
+            {% endfor %}
+        </select>
+
         <label for="delay">Delais:</label>
         <input type="number" name="delay">
+
         <label for="action2">Action 2:</label>
-        <input type="text" name="action2"><br>
+        <select name="action2" class="chosen-select" multiple>
+            {% for command in commands %}
+            <option value="{{ command }}">{{ command }}</option>
+            {% endfor %}
+        </select><br>
 
         <button type="submit">Add Job</button>
     </form>
@@ -64,6 +106,16 @@
                 form.submit();
             }
         }
+    </script>
+    <script>
+        $(document).ready(function(){
+            $(".chosen-select").chosen({
+                width: "300px",
+                allow_single_deselect: true,
+                no_results_text: "No commands found matching",
+                placeholder_text_multiple: "Select commands..."
+            });
+        });
     </script>
 </body>
 </html>

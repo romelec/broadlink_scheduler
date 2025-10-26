@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Broadlink Scheduler Settings</title>
+    <style>
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid black; padding: 8px; text-align: left; }
+        .nav { margin-bottom: 20px; }
+        .settings-section { margin-bottom: 30px; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Home</a> | <b>Settings</b>
+    </div>
+
+    <div class="settings-section">
+        <h2>Device Settings</h2>
+        {% for entry in data if entry.type == 'device' %}
+        <form action="/update_data" method="post">
+            <input type="hidden" name="type" value="device">
+            <label>Device Type:</label>
+            <input type="text" name="devtype" value="{{ entry.settings.devtype }}" required><br>
+            <label>Host:</label>
+            <input type="text" name="host" value="{{ entry.settings.host }}" required><br>
+            <label>MAC:</label>
+            <input type="text" name="mac" value="{{ entry.settings.mac }}" required><br>
+            <label>Frequency:</label>
+            <input type="number" step="0.01" name="frequency" value="{{ entry.settings.frequency }}" required><br>
+            <input type="submit" value="Update Device Settings">
+        </form>
+        {% endfor %}
+    </div>
+
+    <div class="settings-section">
+        <h2>Location Settings</h2>
+        {% for entry in data if entry.type == 'location' %}
+        <form action="/update_data" method="post">
+            <input type="hidden" name="type" value="location">
+            <label>Timezone:</label>
+            <input type="text" name="timezone" value="{{ entry.settings.timezone }}" required><br>
+            <label>Latitude:</label>
+            <input type="number" step="0.000001" name="lat" value="{{ entry.settings.lat }}" required><br>
+            <label>Longitude:</label>
+            <input type="number" step="0.000001" name="long" value="{{ entry.settings.long }}" required><br>
+            <input type="submit" value="Update Location Settings">
+        </form>
+        {% endfor %}
+    </div>
+
+    <div class="settings-section">
+        <h2>RF Commands</h2>
+        <h3>Add New Command</h3>
+        <form action="/add_data" method="post">
+            <input type="hidden" name="type" value="command">
+            <label>Name:</label>
+            <input type="text" name="name" required>
+            <label>Data:</label>
+            <input type="text" name="data" required>
+            <input type="submit" value="Add Command">
+        </form>
+
+        <h3>Existing Commands</h3>
+        <table>
+            <tr>
+                <th>Name</th>
+                <th>Data</th>
+                <th>Actions</th>
+            </tr>
+            {% for entry in data if entry.type == 'command' %}
+            <tr>
+                <td>{{ entry.name }}</td>
+                <td>{{ entry.data[:20] }}...</td>
+                <td>
+                    <form action="/remove_data" method="post" style="display: inline;">
+                        <input type="hidden" name="name" value="{{ entry.name }}">
+                        <input type="submit" value="Delete">
+                    </form>
+                    <form action="/update_data" method="post" style="display: inline;">
+                        <input type="hidden" name="name" value="{{ entry.name }}">
+                        <input type="hidden" name="type" value="command">
+                        <input type="text" name="data" value="{{ entry.data }}" style="width: 200px;">
+                        <input type="submit" value="Update">
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</body>
+</html>
