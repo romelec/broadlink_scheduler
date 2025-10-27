@@ -9,176 +9,216 @@ from dateutil import tz
 from timezonefinder import TimezoneFinder
 from astral import LocationInfo
 from astral.sun import sun
-
 from web import web 
-scheduler_reset = None
 
-def setup_dev(json_data):
-    for itm in json_data:
-        if itm['type'] == "device":
-            itm = itm['settings']
-            devtype = int(itm['devtype'], 0)
-            host = itm['host']
-            mac = bytearray.fromhex(itm['mac'])
+class Scheduler:
+    def __init__(self, data_file, jobs_file):
+        self.data_file = data_file
+        self.jobs_file = jobs_file
+        self.json_data = self.read_data_from_json(self.data_file)
+        self.json_jobs = self.read_data_from_json(self.jobs_file)
+        self.suntime = self.get_sun()
+        self.device = None
+        self.scheduler_reset = threading.Event()
+        if not self.setup_device():
+            print("Failed to initialize device, will try later", flush=True)
+        
+    def setup_device(self):
+        with open(self.data_file, 'r') as f:
+            data = json.load(f)
+            for item in data:
+                if item['type'] == "device":
+                    settings = item['settings']
+                    devtype = int(settings['devtype'], 0)
+                    host = settings['host']
+                    mac = bytearray.fromhex(settings['mac'])
+                    try:
+                        self.device = broadlink.gendevice(devtype, (host, DEFAULT_PORT), mac)
+                        self.device.auth()
+                    except Exception as e:
+                        print(f"Failed to setup device: {e}", flush=True)
+                        self.device = None
+                        return False
+                    return True
+        return False
 
-            print(f"Setup {devtype}, {host}, {mac}", flush=True)
-            dev = broadlink.gendevice(devtype, (host, DEFAULT_PORT), mac)
-            dev.auth()
-            return dev
+    def run(self):
+        while not self.device and not self.setup_device():
+            print("Failed to initialize device, try agin", flush=True)
+            time.sleep(10)
 
-    print ("Setup data not found", flush=True)
-    return None
+        while True:
+            # Update data from files
+            self.json_data = self.read_data_from_json(self.data_file)
+            self.json_jobs = self.read_data_from_json(self.jobs_file)
+            self.schedule_jobs()
 
-def get_sun(json_data):
-    for itm in json_data:
-        if itm['type'] == "location":
-            itm = itm['settings']
-            lat = itm['lat']
-            long = itm['long']
-            time_zone = tz.gettz(itm['timezone'])
+            # Run scheduler
+            while not self.scheduler_reset.is_set():
+                schedule.run_pending()
+                time.sleep(1)
 
-            tf = TimezoneFinder()
-            timezone_str = tf.timezone_at(lng=long, lat=lat)
-            city = LocationInfo(name="", region="", timezone=time_zone,
-                            latitude=lat, longitude=long)
-            date = datetime.date.today()
-            s = sun(city.observer, date=date, tzinfo=pytz.timezone(timezone_str))
-            return s
+            # Cancel all jobs before exiting
+            schedule.clear()
+            self.scheduler_reset.clear()
+            print("Scheduler restart", flush=True)
 
-    print ("Setup sun not found", flush=True)
-    return None
+    def setup_dev(self):
+        for itm in self.json_data:
+            if itm['type'] == "device":
+                itm = itm['settings']
+                devtype = int(itm['devtype'], 0)
+                host = itm['host']
+                mac = bytearray.fromhex(itm['mac'])
 
-def get_signal(json_data, action):
-    for itm in json_data:
-        if itm['type'] == 'command' and itm['name'] == action:
-            data = bytearray.fromhex(''.join(itm['data'])) 
-            return data
+                print(f"Setup {devtype}, {host}, {mac}", flush=True)
+                dev = broadlink.gendevice(devtype, (host, DEFAULT_PORT), mac)
+                dev.auth()
+                return dev
 
-    print (f"Data not found for '{action}'", flush=True)
-    return None
-
-def get_time(job_time, s):
-    once = False
-    if job_time.startswith("sunset"):
-        job_time = s['dusk'] + datetime.timedelta(minutes=extract_time_offset(job_time))
-        job_time = job_time.strftime('%H:%M')
-        once = True 
-    elif job_time.startswith("sunrise"):
-        job_time = s['dawn'] + datetime.timedelta(minutes=extract_time_offset(job_time))
-        job_time = job_time.strftime('%H:%M')
-        once = True 
-    return job_time, once
-
-def send_single (device, action):
-    if (not action):
-        print("Nothing to do", flush=True)
-        return
-
-    data = get_signal(action)
-    print (f"Send {action}", flush=True)
-    if data != None:
-        device.send_data(data)
-
-def send_rfdata(device, job):
-    job_name = job['name']
-    job_time = job['time']
-    job_param = job.get('parameters', None)
-    print(f"Running '{job_name}' with parameters: {job_param}", flush=True)
-    action1 = job_param['action1']
-    action2 = job_param['action2']
-    delay = job_param['delay']
-    weekday = job_param['weekday']
-    weekend = job_param['weekend']
-
-    # Execute depending of the day
-    week = datetime.datetime.today().isoweekday()
-    if (weekday and week <= 5) or (weekend and week > 5):
-        # action 1
-        for action in action1:
-            send_single(device, action)
-            time.sleep(0.5)
-        # pause
-        print(f"Pause {delay}s", flush=True)
-        time.sleep(delay)
-        # action 2
-        for action in action2:
-            send_single(device, action)
-            time.sleep(0.5)
-
-def learn_rfdata(device, frequency):
-    print(f"Entering learning mode. Please send the RF signal now...", flush=True)
-    device.find_rf_packet(frequency)
-    time.sleep(5)  # Wait for the signal to be received
-    data = device.check_data()
-    if data is not None:
-        print(f"RF signal learned: {data}", flush=True)
-        return data
-    else:
-        print("No RF signal received.", flush=True)
+        print ("Setup data not found", flush=True)
         return None
 
-def read_data_from_json(json_file):
-    with open(json_file, 'r') as f:
-        data = json.load(f)
-    return data
+    def get_sun(self):
+        for itm in self.json_data:
+            if itm['type'] == "location":
+                itm = itm['settings']
+                lat = itm['lat']
+                long = itm['long']
+                time_zone = tz.gettz(itm['timezone'])
 
-def extract_time_offset(job_time):
-    # Extract the numeric value at the end of the string
-    match = re.search(r'([-+]?\d+)$', job_time)
-    if match:
-        time_offset = int(match.group(1))
-        if job_time[-1] == '-':
-            time_offset *= -1
-        return time_offset
-    else:
-        return 0
+                tf = TimezoneFinder()
+                timezone_str = tf.timezone_at(lng=long, lat=lat)
+                city = LocationInfo(name="", region="", timezone=time_zone,
+                                latitude=lat, longitude=long)
+                date = datetime.date.today()
+                s = sun(city.observer, date=date, tzinfo=pytz.timezone(timezone_str))
+                return s
 
-def schedule_jobs(jobs, data, device):
-    s = get_sun(data)
+        print ("Setup sun not found", flush=True)
+        return None
 
-    for job in jobs:
-        # Schedule the job with the specified time and parameters
+    def get_signal(self, action):
+        for itm in self.json_data:
+            if itm['type'] == 'command' and itm['name'] == action:
+                data = bytearray.fromhex(''.join(itm['data'])) 
+                return data
+
+        print (f"Data not found for '{action}'", flush=True)
+        return None
+
+    def get_time(self, job_time):
+        once = False
+        if job_time.startswith("sunset"):
+            job_time = self.suntime['dusk'] + datetime.timedelta(minutes=self.extract_time_offset(job_time))
+            job_time = job_time.strftime('%H:%M')
+            once = True 
+        elif job_time.startswith("sunrise"):
+            job_time = self.suntime['dawn'] + datetime.timedelta(minutes=self.extract_time_offset(job_time))
+            job_time = job_time.strftime('%H:%M')
+            once = True 
+        return job_time, once
+
+    def send_single (self, action):
+        if (not action):
+            print("Nothing to do", flush=True)
+            return
+
+        data = self.get_signal(action)
+        print (f"Send {action}", flush=True)
+        if data != None:
+            self.device.send_data(data)
+
+    def send_rfdata(self, job):
         job_name = job['name']
         job_time = job['time']
         job_param = job.get('parameters', None)
+        print(f"Running '{job_name}' with parameters: {job_param}", flush=True)
+        action1 = job_param['action1']
+        action2 = job_param['action2']
+        delay = job_param['delay']
+        weekday = job_param['weekday']
+        weekend = job_param['weekend']
 
-        job_time, once = get_time(job_time, s)
+        # Execute depending of the day
+        week = datetime.datetime.today().isoweekday()
+        if (weekday and week <= 5) or (weekend and week > 5):
+            # action 1
+            for action in action1:
+                self.send_single(action)
+                time.sleep(0.5)
+            # pause
+            print(f"Pause {delay}s", flush=True)
+            time.sleep(delay)
+            # action 2
+            for action in action2:
+                self.send_single(action)
+                time.sleep(0.5)
 
-        print(f"Schedule job '{job_name}' at {job_time}: '{job_param}'")
-        schedule.every().day.at(job_time).do(send_rfdata, device, job)
+    def learn_rfdata(self, device, frequency):
+        print(f"Entering learning mode. Please send the RF signal now...", flush=True)
+        device.find_rf_packet(frequency)
+        time.sleep(5)  # Wait for the signal to be received
+        data = device.check_data()
+        if data is not None:
+            print(f"RF signal learned: {data}", flush=True)
+            return data
+        else:
+            print("No RF signal received.", flush=True)
+            return None
 
-    # Restart scheduler every morning
-    schedule.every().day.at("06:00").do(config_update)
+    def read_data_from_json(self, json_file):
+        with open(json_file, 'r') as f:
+            data = json.load(f)
+        return data
 
-def run_scheduler(args):
-    global scheduler_reset
-    scheduler_reset = threading.Event()
+    def extract_time_offset(self, job_time):
+        # Extract the numeric value at the end of the string
+        match = re.search(r'([-+]?\d+)$', job_time)
+        if match:
+            time_offset = int(match.group(1))
+            if job_time[-1] == '-':
+                time_offset *= -1
+            return time_offset
+        else:
+            return 0
 
-    while True:
-        # Read data file and configure the device
-        data = read_data_from_json(args.data)
-        device = setup_dev(data)
+    def schedule_jobs(self):
+        for job in self.json_jobs:
+            # Schedule the job with the specified time and parameters
+            job_name = job['name']
+            job_time = job['time']
+            enabled = job.get('enabled', True)
+            if not enabled:
+                print(f"Job '{job_name}' is disabled, skipping scheduling.", flush=True)
+                continue
+            job_param = job.get('parameters', None)
 
-        # Read jobs and configure scheduler
-        jobs = read_data_from_json(args.jobs)
-        schedule_jobs(jobs, data, device)
+            job_time, once = self.get_time(job_time)
 
-        # Run scheduler
-        while not scheduler_reset.is_set():
-            schedule.run_pending()
-            time.sleep(1)
+            print(f"Schedule job '{job_name}' at {job_time}: '{job_param}'", flush=True)
+            schedule.every().day.at(job_time).do(self.send_rfdata, job)
 
-        # Cancel all jobs before exiting
-        schedule.clear()
-        scheduler_reset.clear()
-        print("Scheduler restart", flush=True)
+        # Restart scheduler every morning to update the sunrise/sunset times
+        schedule.every().day.at("04:00").do(self.reschedule)
 
+    def reschedule(self):
+        print("Rescheduling jobs...", flush=True)
+        self.suntime = self.get_sun()
+        self.scheduler_reset.set()
 
-def config_update():
-    print("update config -> restart scheduler thread", flush=True)
-    global scheduler_reset
-    scheduler_reset.set()
+    def update_jobs(self):
+        print("update jobs -> restart scheduler thread", flush=True)
+        self.scheduler_reset.set()
 
+    def update_device(self):
+        print("update broadlink device", flush=True)
+        self.json_data = self.read_data_from_json(self.data_file)
+        del self.device
+        if self.setup_device():
+            print("Device updated", flush=True)
+            return self.device
+        return None
 
 def main(argv=None):
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
@@ -186,13 +226,14 @@ def main(argv=None):
     parser.add_argument("-j", "--jobs", default='jobs.json', help="jobs list file")
     args = parser.parse_args()
 
-    # Start the webserver
-    webserv = web(args.data, args.jobs) 
-    webserv.start(config_update)
+    scheduler = Scheduler(args.data, args.jobs)
 
-    # Run the scheduler forever
-    run_scheduler(args)
+    # Start web server with initialized device
+    web_server = web(args.data, args.jobs, scheduler.device, scheduler.update_jobs, scheduler.update_device)
+    web_server.start()
+
+    scheduler.run()
 
 
 if __name__ == "__main__":
-    main(argv=None) 
+    main()

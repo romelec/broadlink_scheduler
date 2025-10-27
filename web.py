@@ -3,13 +3,15 @@ import json, time
 import threading
 
 class web:
-    def __init__(self, data_file, jobs_file):
+    def __init__(self, data_file, jobs_file, device, job_update_cb, update_device_cb):
         self.data_file = data_file
         self.jobs_file = jobs_file
+        self.device = device
         self.app = Flask(__name__)
 
         # Callback when a job is updated
-        self.job_update_cb = None
+        self.job_update_cb = job_update_cb
+        self.update_device_cb = update_device_cb
 
         # Load the initial jobs from the JSON file
         with open(self.jobs_file, 'r') as f:
@@ -23,21 +25,19 @@ class web:
         self.app.route('/update_data', methods=['POST'])(self.update_data)
         self.app.route('/add_data', methods=['POST'])(self.add_data)
         self.app.route('/remove_data', methods=['POST'])(self.remove_data)
+        self.app.route('/learn_command', methods=['POST'])(self.learn_command)
+        self.app.route('/toggle_job', methods=['POST'])(self.toggle_job)
 
     def save_jobs_to_json(self):
         # Save the updated jobs to the JSON file
         with open(self.jobs_file, 'w') as f:
             json.dump(self.jobs_data, f, indent=4)
 
-    def web_thread(self, callback = None):
-        print(f"set callback {callback}", flush=True)
-        if callback != None:
-            global job_update_cb
-            job_update_cb = callback
+    def web_thread(self):
         self.app.run(host='0.0.0.0', port=8080)
 
-    def start(self, callback = None):
-        thread = threading.Thread(target=self.web_thread, args=(callback,))
+    def start(self):
+        thread = threading.Thread(target=self.web_thread)
         thread.start()
 
     def home(self):
@@ -59,6 +59,7 @@ class web:
         # Parse job details from the request
         job_name = request.form['name']
         job_time = request.form['time']
+        enabled = bool(request.form.getlist('enabled'))
         job_parameters = {
             "action1": request.form.getlist('action1'),
             "delay": int(request.form['delay']),
@@ -73,12 +74,14 @@ class web:
         if existing_job:
             # If the job exists, update its time and parameters
             existing_job['time'] = job_time
+            existing_job['enabled'] = enabled
             existing_job['parameters'] = job_parameters
         else:
             # If the job does not exist, add it to the jobs_data list
             new_job = {
                 'name': job_name,
                 'time': job_time,
+                'enabled': enabled,
                 'parameters': job_parameters
             }
             self.jobs_data.append(new_job)
@@ -86,8 +89,8 @@ class web:
         # Save the updated jobs to the JSON file
         self.save_jobs_to_json()
 
-        if job_update_cb != None:
-            job_update_cb()
+        if self.job_update_cb is not None:
+            self.job_update_cb()
 
         # Redirect to the home page after adding the job
         return redirect(url_for('home'))
@@ -102,10 +105,26 @@ class web:
         # Save the updated jobs to the JSON file
         self.save_jobs_to_json()
 
-        if job_update_cb != None:
-            job_update_cb()
+        if self.job_update_cb is not None:
+            self.job_update_cb()
 
         # Redirect to the home page after removing the job
+        return redirect(url_for('home'))
+    
+    def toggle_job(self):
+        job_name = request.form['name']
+        
+        # Find and update the job's enabled status
+        for job in self.jobs_data:
+            if job['name'] == job_name:
+                job['enabled'] = not job.get('enabled', True)
+                break
+        
+        self.save_jobs_to_json()
+        
+        if self.job_update_cb is not None:
+            self.job_update_cb()
+    
         return redirect(url_for('home'))
 
     def settings(self):
@@ -114,8 +133,8 @@ class web:
         return render_template('settings.html', data=data)
 
     def update_data(self):
-        data_name = request.form['name']
-        data_type = request.form.get('type', 'command')
+        data_name = request.form.get('name', '')
+        data_type = request.form.get('type', '')
         
         with open(self.data_file, 'r') as f:
             data = json.load(f)
@@ -144,7 +163,9 @@ class web:
         
         with open(self.data_file, 'w') as f:
             json.dump(data, f, indent=4)
-    
+
+        if data_type == 'device' and self.update_device_cb is not None:
+            self.device = self.update_device_cb()
         return redirect(url_for('settings'))
 
     def add_data(self):
@@ -179,3 +200,49 @@ class web:
             json.dump(data, f, indent=4)
     
         return redirect(url_for('settings'))
+
+    def learn_command(self):
+        name = request.form['name']
+        if not name:
+            return jsonify({"success": False, "message": "Command name is required"})
+
+        if self.device is None:
+            return jsonify({"success": False, "message": "Device not initialized"})
+
+        # Get frequency from device settings
+        with open(self.data_file, 'r') as f:
+            data = json.load(f)
+            frequency = next((item['settings']['frequency'] for item in data if item['type'] == "device"), None)
+
+        if not frequency:
+            return jsonify({"success": False, "message": "Device frequency not found"})
+
+        try:
+            print(f"Learning RF command '{name}' at {frequency}Hz...", flush=True)
+            self.device.find_rf_packet(frequency)
+            time.sleep(5)  # Wait for signal
+            data = self.device.check_data()
+            
+            if data is None:
+                return jsonify({"success": False, "message": "No RF signal received"})
+
+            # Convert data to hex string
+            hex_data = ''.join(format(x, '02x') for x in data)
+
+            # Add new command to data.json
+            with open(self.data_file, 'r') as f:
+                json_data = json.load(f)
+
+            json_data.append({
+                "name": name,
+                "type": "command",
+                "data": hex_data
+            })
+
+            with open(self.data_file, 'w') as f:
+                json.dump(json_data, f, indent=4)
+
+            return jsonify({"success": True, "message": f"Command '{name}' learned successfully"})
+
+        except Exception as e:
+            return jsonify({"success": False, "message": f"Error learning command: {str(e)}"})

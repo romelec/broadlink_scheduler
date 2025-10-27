@@ -1,23 +1,39 @@
 [
     {
         "name": "matin 1",
-        "time": "09:10",
+        "time": "07:50",
+        "enabled": true,
         "parameters": {
             "action1": [
-                "chambre.up",
-                "fenetre.down"
+                "chambre.up"
             ],
-            "delay": 2,
-            "action2": [
-                "fenetre.stop"
-            ],
+            "delay": 0,
+            "action2": "",
             "weekday": true,
             "weekend": false
         }
     },
     {
         "name": "matin 2",
-        "time": "sunset+10",
+        "time": "08:10",
+        "enabled": true,
+        "parameters": {
+            "action1": [
+                "chambre.up",
+                "cuisine.up",
+                "fenetre.up",
+                "porte.up"
+            ],
+            "delay": 0,
+            "action2": [],
+            "weekday": true,
+            "weekend": false
+        }
+    },
+    {
+        "name": "matin 2 ete",
+        "time": "08:10",
+        "enabled": false,
         "parameters": {
             "action1": [
                 "chambre.up",
@@ -36,6 +52,7 @@
     {
         "name": "matin 3",
         "time": "09:00",
+        "enabled": true,
         "parameters": {
             "action1": [
                 "chambre.up",
@@ -52,8 +69,26 @@
         }
     },
     {
+        "name": "matin 3 ete",
+        "time": "09:00",
+        "enabled": false,
+        "parameters": {
+            "action1": [
+                "chambre.up",
+                "cuisine.up",
+                "fenetre.up",
+                "porte.up"
+            ],
+            "delay": 0,
+            "action2": [],
+            "weekday": false,
+            "weekend": true
+        }
+    },
+    {
         "name": "midi 1",
-        "time": "12:00",
+        "time": "12:30",
+        "enabled": true,
         "parameters": {
             "action1": [
                 "porte.up"
@@ -65,13 +100,14 @@
         }
     },
     {
-        "name": "midi 2",
-        "time": "12:37",
+        "name": "midi 2 ete",
+        "time": "11:15",
+        "enabled": false,
         "parameters": {
             "action1": [
                 "fenetre.down"
             ],
-            "delay": 9,
+            "delay": 6,
             "action2": [
                 "fenetre.stop"
             ],
@@ -81,7 +117,8 @@
     },
     {
         "name": "soir 1",
-        "time": "12:36",
+        "time": "17:30",
+        "enabled": false,
         "parameters": {
             "action1": [
                 "fenetre.up"
@@ -94,7 +131,8 @@
     },
     {
         "name": "soir 2",
-        "time": "21:30",
+        "time": "sunset+10",
+        "enabled": true,
         "parameters": {
             "action1": [
                 "chambre.down",
@@ -102,9 +140,25 @@
                 "fenetre.down",
                 "porte.down"
             ],
-            "delay": 17,
+            "delay": 0,
+            "action2": [],
+            "weekday": true,
+            "weekend": true
+        }
+    },
+    {
+        "name": "soir 2 ete",
+        "time": "sunset+10",
+        "enabled": false,
+        "parameters": {
+            "action1": [
+                "chambre.down",
+                "cuisine.down",
+                "fenetre.down",
+                "porte.down"
+            ],
+            "delay": 15,
             "action2": [
-                "fenetre.stop",
                 "porte.stop"
             ],
             "weekday": true,
