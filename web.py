@@ -34,7 +34,7 @@ class web:
             json.dump(self.jobs_data, f, indent=4)
 
     def web_thread(self):
-        self.app.run(host='0.0.0.0', port=8080)
+        self.app.run(host='::', port=8080)
 
     def start(self):
         thread = threading.Thread(target=self.web_thread)

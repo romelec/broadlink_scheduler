@@ -5,8 +5,6 @@ import threading
 import broadlink
 
 from broadlink.const import DEFAULT_PORT
-from dateutil import tz
-from timezonefinder import TimezoneFinder
 from astral import LocationInfo
 from astral.sun import sun
 from web import web 
@@ -85,14 +83,13 @@ class Scheduler:
                 itm = itm['settings']
                 lat = itm['lat']
                 long = itm['long']
-                time_zone = tz.gettz(itm['timezone'])
+                time_zone = itm['timezone']
 
-                tf = TimezoneFinder()
-                timezone_str = tf.timezone_at(lng=long, lat=lat)
+                tzinfo=pytz.timezone(time_zone)
                 city = LocationInfo(name="", region="", timezone=time_zone,
                                 latitude=lat, longitude=long)
                 date = datetime.date.today()
-                s = sun(city.observer, date=date, tzinfo=pytz.timezone(timezone_str))
+                s = sun(city.observer, date=date, tzinfo=tzinfo)
                 return s
 
         print ("Setup sun not found", flush=True)

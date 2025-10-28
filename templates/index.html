@@ -2,19 +2,18 @@
 <html>
 <head>
     <title>Jobs List</title>
-    <!-- Add Chosen CSS and JS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/chosen/1.8.7/chosen.min.css" rel="stylesheet">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chosen/1.8.7/chosen.jquery.min.js"></script>
     <style>
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid black; padding: 8px; text-align: left; }
+        .nav { margin-bottom: 20px; }
+        .section { margin-bottom: 30px; }
         .chosen-container {
             display: inline-block;
             width: 300px !important;
             margin: 5px;
-        }
-        .chosen-container-multi .chosen-choices {
-            padding: 5px;
-            border: 1px solid #ccc;
         }
     </style>
 </head>
@@ -22,91 +21,92 @@
     <div class="nav">
         <b>Home</b> | <a href="/settings">Settings</a>
     </div>
-    <h1>Jobs List</h1>
-    {% for job in jobs %}
-    <h2>Edit Job - {{ job.name }}</h2>
-    <form action="/add_job" method="post">
-        <input type="hidden" name="name" value="{{ job.name }}">
-        <label for="time">Time:</label>
-        <input type="text" name="time" value="{{ job.time }}" required>
-        <label for="weekday">Semaine:</label>
-        <input type="checkbox" name="weekday" {% if job.parameters.weekday %}checked{% endif %}>
-        <label for="weekend">Weekend:</label>
-        <input type="checkbox" name="weekend" {% if job.parameters.weekend %}checked{% endif %}><br>
 
-        <label for="action1">Action 1:</label>
-        <select name="action1" class="chosen-select" multiple>
-            {% for command in commands %}
-            <option value="{{ command }}" {% if command in job.parameters.action1 %}selected{% endif %}>
-                {{ command }}
-            </option>
+    <div class="section">
+        <h2>Add New Job</h2>
+        <form action="/add_job" method="post">
+            <label for="name">Name:</label>
+            <input type="text" name="name" required>
+            
+            <label for="time">Time:</label>
+            <input type="text" name="time" required>
+            
+            <label for="weekday">Semaine:</label>
+            <input type="checkbox" name="weekday">
+            
+            <label for="weekend">Weekend:</label>
+            <input type="checkbox" name="weekend"><br>
+
+            <label for="enabled">Enabled:</label>
+            <input type="checkbox" name="enabled" checked>
+
+            <label for="action1">Action 1:</label>
+            <select name="action1" class="chosen-select" multiple>
+                <option value=""></option>
+                {% for command in commands %}
+                <option value="{{ command }}">{{ command }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="delay">Delais:</label>
+            <input type="number" name="delay" value="0">
+
+            <label for="action2">Action 2:</label>
+            <select name="action2" class="chosen-select" multiple>
+                <option value=""></option>
+                {% for command in commands %}
+                <option value="{{ command }}">{{ command }}</option>
+                {% endfor %}
+            </select><br>
+
+            <button type="submit">Add Job</button>
+        </form>
+    </div>
+
+    <div class="section">
+        <h2>Existing Jobs</h2>
+        <table>
+            <tr>
+                <th>Name</th>
+                <th>Enabled</th>
+                <th>Time</th>
+                <th>Days</th>
+                <th>Action 1</th>
+                <th>Delay</th>
+                <th>Action 2</th>
+                <th>Actions</th>
+            </tr>
+            {% for job in jobs %}
+            <tr>
+                <td>{{ job.name }}</td>
+                <td>
+                    <form action="/toggle_job" method="post" style="display: inline;">
+                        <input type="hidden" name="name" value="{{ job.name }}">
+                        <input type="checkbox" onchange="this.form.submit()" 
+                               {% if job.get('enabled', True) %}checked{% endif %}>
+                    </form>
+                </td>
+                <td>{{ job.time }}</td>
+                <td>
+                    {% if job.parameters.weekday %}Semaine{% endif %}
+                    {% if job.parameters.weekday and job.parameters.weekend %}, {% endif %}
+                    {% if job.parameters.weekend %}Weekend{% endif %}
+                </td>
+                <td>{{ job.parameters.action1|join(', ') }}</td>
+                <td>{{ job.parameters.delay }}</td>
+                <td>{{ job.parameters.action2|join(', ') }}</td>
+                <td>
+                    <form action="/remove_job" method="post" style="display: inline;">
+                        <input type="hidden" name="name" value="{{ job.name }}">
+                        <input type="submit" value="Delete">
+                    </form>
+                    <button onclick="editJob('{{ job.name }}')" style="display: inline;">Edit</button>
+                </td>
+            </tr>
             {% endfor %}
-        </select>
+        </table>
+    </div>
 
-        <label for="delay">Delais:</label>
-        <input type="number" name="delay" value="{{ job.parameters.delay }}">
-
-        <label for="action2">Action 2:</label>
-        <select name="action2" class="chosen-select" multiple>
-            {% for command in commands %}
-            <option value="{{ command }}" {% if command in job.parameters.action2 %}selected{% endif %}>
-                {{ command }}
-            </option>
-            {% endfor %}
-        </select><br>
-
-        <button type="submit">Update Job</button>
-        <button type="button" onclick="removeJob('{{ job.name }}')">Remove Job</button>
-    </form>
-    {% endfor %}
-
-    <h2>Add New Job</h2>
-    <form action="/add_job" method="post">
-        <label for="name">Name:</label>
-        <input type="text" name="name" required>
-        <label for="time">Time:</label>
-        <input type="text" name="time" required>
-        <label for="weekday">Semaine:</label>
-        <input type="checkbox" name="weekday">
-        <label for="weekend">Weekend:</label>
-        <input type="checkbox" name="weekend"><br>
-
-        <label for="action1">Action 1:</label>
-        <select name="action1" class="chosen-select" multiple>
-            {% for command in commands %}
-            <option value="{{ command }}">{{ command }}</option>
-            {% endfor %}
-        </select>
-
-        <label for="delay">Delais:</label>
-        <input type="number" name="delay">
-
-        <label for="action2">Action 2:</label>
-        <select name="action2" class="chosen-select" multiple>
-            {% for command in commands %}
-            <option value="{{ command }}">{{ command }}</option>
-            {% endfor %}
-        </select><br>
-
-        <button type="submit">Add Job</button>
-    </form>
-
-    <script>
-        function removeJob(jobName) {
-            if (confirm("Are you sure you want to remove this job?")) {
-                const form = document.createElement("form");
-                form.method = "post";
-                form.action = "/remove_job";
-                const input = document.createElement("input");
-                input.type = "hidden";
-                input.name = "name";
-                input.value = jobName;
-                form.appendChild(input);
-                document.body.appendChild(form);
-                form.submit();
-            }
-        }
-    </script>
     <script>
         $(document).ready(function(){
             $(".chosen-select").chosen({
@@ -116,6 +116,28 @@
                 placeholder_text_multiple: "Select commands..."
             });
         });
+
+        function editJob(jobName) {
+            // Find the job in the jobs list
+            const job = {{ jobs|tojson|safe }}.find(j => j.name === jobName);
+            if (!job) return;
+
+            // Fill the form with job data
+            const form = document.querySelector('form');
+            form.name.value = job.name;
+            form.enabled.checked = job.enabled !== false;  // Default to true if not set
+            form.time.value = job.time;
+            form.weekday.checked = job.parameters.weekday;
+            form.weekend.checked = job.parameters.weekend;
+            form.delay.value = job.parameters.delay;
+
+            // Update Chosen dropdowns
+            $(form.action1).val(job.parameters.action1).trigger('chosen:updated');
+            $(form.action2).val(job.parameters.action2).trigger('chosen:updated');
+
+            // Scroll to form
+            form.scrollIntoView({ behavior: 'smooth' });
+        }
     </script>
 </body>
 </html>

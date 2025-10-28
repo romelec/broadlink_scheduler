@@ -7,9 +7,63 @@
         th, td { border: 1px solid black; padding: 8px; text-align: left; }
         .nav { margin-bottom: 20px; }
         .settings-section { margin-bottom: 30px; }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            z-index: 1001;
+            text-align: center;
+        }
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        .status-message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success { 
+            background-color: #dff0d8; 
+            border: 1px solid #d6e9c6; 
+            color: #3c763d;
+        }
+        .error { 
+            background-color: #f2dede; 
+            border: 1px solid #ebccd1; 
+            color: #a94442;
+        }
     </style>
 </head>
 <body>
+    <!-- Add new status message modal next to learning modal -->
+    <div id="learningOverlay" class="overlay"></div>
+    <div id="learningModal" class="modal">
+        <h3>Learning Mode Active</h3>
+        <p>Please send the RF signal now...</p>
+        <p>Waiting for signal... <span id="countdown">5</span></p>
+    </div>
+
+    <div id="statusOverlay" class="overlay"></div>
+    <div id="statusModal" class="modal">
+        <h3 id="statusTitle">Status</h3>
+        <p id="statusText"></p>
+        <button onclick="hideStatus()">OK</button>
+    </div>
+
     <div class="nav">
         <a href="/">Home</a> | <b>Settings</b>
     </div>
@@ -50,22 +104,20 @@
 
     <div class="settings-section">
         <h2>RF Commands</h2>
-        <h3>Add New Command</h3>
-        <form action="/add_data" method="post">
-            <input type="hidden" name="type" value="command">
-            <label>Name:</label>
-            <input type="text" name="name" required>
-            <label>Data:</label>
-            <input type="text" name="data" required>
-            <input type="submit" value="Add Command">
-        </form>
-
-        <h3>Existing Commands</h3>
         <table>
             <tr>
                 <th>Name</th>
                 <th>Data</th>
                 <th>Actions</th>
+            </tr>
+            <tr id="newCommandRow">
+                <td>
+                    <input type="text" id="commandName" placeholder="New Command" required>
+                </td>
+                <td><em style="color: #999;">Data will be learned...</em></td>
+                <td>
+                    <button onclick="learnCommand(event)">Learn Command</button>
+                </td>
             </tr>
             {% for entry in data if entry.type == 'command' %}
             <tr>
@@ -76,16 +128,96 @@
                         <input type="hidden" name="name" value="{{ entry.name }}">
                         <input type="submit" value="Delete">
                     </form>
-                    <form action="/update_data" method="post" style="display: inline;">
-                        <input type="hidden" name="name" value="{{ entry.name }}">
-                        <input type="hidden" name="type" value="command">
-                        <input type="text" name="data" value="{{ entry.data }}" style="width: 200px;">
-                        <input type="submit" value="Update">
-                    </form>
+                    <button onclick="learnCommand(event, '{{ entry.name }}')" style="display: inline;">Update</button>
                 </td>
             </tr>
             {% endfor %}
         </table>
     </div>
+
+    <script>
+    function showStatus(message, isSuccess) {
+        const statusTitle = document.getElementById('statusTitle');
+        const statusText = document.getElementById('statusText');
+        
+        statusTitle.textContent = isSuccess ? 'Success' : 'Error';
+        statusText.textContent = message;
+        
+        document.getElementById('statusOverlay').style.display = 'block';
+        document.getElementById('statusModal').style.display = 'block';
+        
+        if (isSuccess) {
+            setTimeout(() => {
+                hideStatus();
+                location.reload();
+            }, 2000);
+        }
+    }
+
+    function hideStatus() {
+        document.getElementById('statusOverlay').style.display = 'none';
+        document.getElementById('statusModal').style.display = 'none';
+    }
+
+    async function learnCommand(event, existingName = null) {
+        event.preventDefault();
+        let name;
+        
+        if (existingName) {
+            name = existingName;
+        } else {
+            const nameInput = document.getElementById('commandName');
+            name = nameInput.value;
+            
+            // Check if name already exists
+            const existingCommands = [{% for entry in data if entry.type == 'command' %}'{{ entry.name }}',{% endfor %}];
+            if (existingCommands.includes(name)) {
+                showStatus('Command name already exists', false);
+                return false;
+            }
+        }
+        
+        // Show learning modal
+        document.getElementById('learningOverlay').style.display = 'block';
+        document.getElementById('learningModal').style.display = 'block';
+        
+        // Start countdown
+        let countdown = 5;
+        const countdownElement = document.getElementById('countdown');
+        const countdownInterval = setInterval(() => {
+            countdown--;
+            countdownElement.textContent = countdown;
+        }, 1000);
+
+        try {
+            const response = await fetch('/learn_command', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `name=${encodeURIComponent(name)}`
+            });
+
+            const result = await response.json();
+            
+            // Show status message in modal
+            showStatus(result.message, result.success);
+
+            if (result.success && !existingName) {
+                const nameInput = document.getElementById('commandName');
+                nameInput.value = '';
+            }
+        } catch (error) {
+            showStatus('Could not contact server', false);
+        } finally {
+            clearInterval(countdownInterval);
+            document.getElementById('learningOverlay').style.display = 'none';
+            document.getElementById('learningModal').style.display = 'none';
+            countdownElement.textContent = '5'; // Reset countdown for next time
+        }
+
+        return false;
+    }
+    </script>
 </body>
 </html>

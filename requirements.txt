@@ -1,4 +1,5 @@
 schedule
 Flask
 broadlink
-suntime
+astral
+pytz
