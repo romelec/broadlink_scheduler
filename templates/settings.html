@@ -70,20 +70,35 @@
 
     <div class="settings-section">
         <h2>Device Settings</h2>
+        <button onclick="discoverDevices(event)">Discover Broadlink Devices</button>
         {% for entry in data if entry.type == 'device' %}
-        <form action="/update_data" method="post">
-            <input type="hidden" name="type" value="device">
-            <label>Device Type:</label>
-            <input type="text" name="devtype" value="{{ entry.settings.devtype }}" required><br>
-            <label>Host:</label>
-            <input type="text" name="host" value="{{ entry.settings.host }}" required><br>
-            <label>MAC:</label>
-            <input type="text" name="mac" value="{{ entry.settings.mac }}" required><br>
-            <label>Frequency:</label>
-            <input type="number" step="0.01" name="frequency" value="{{ entry.settings.frequency }}" required><br>
-            <input type="submit" value="Update Device Settings">
-        </form>
+        <div id="deviceSettings">
+            <form action="/update_data" method="post">
+                <input type="hidden" name="type" value="device">
+                <label>Device Type:</label>
+                <input type="text" id="devtype" name="devtype" value="{{ entry.settings.devtype }}" required>
+                <label>IP addr:</label>
+                <input type="text" id="host" name="host" value="{{ entry.settings.host }}" required>
+                <label>MAC addr:</label>
+                <input type="text" id="mac" name="mac" value="{{ entry.settings.mac }}" required><br>
+                <label>Frequency:</label>
+                <input type="number" step="0.01" name="frequency" value="{{ entry.settings.frequency }}" required><br>
+                <input type="submit" value="Update Device Settings">
+            </form>
+        </div>
         {% endfor %}
+    </div>
+
+    <!-- Add new discovery modal -->
+    <div id="discoveryOverlay" class="overlay"></div>
+    <div id="discoveryModal" class="modal">
+        <h3>Discovering Broadlink Devices</h3>
+        <div id="discoveryStatus">Scanning network...</div>
+        <div id="deviceList" style="display: none;">
+            <h4>Select a device:</h4>
+            <div id="deviceOptions"></div>
+            <button onclick="hideDiscovery()">Cancel</button>
+        </div>
     </div>
 
     <div class="settings-section">
@@ -217,6 +232,101 @@
         }
 
         return false;
+    }
+
+    async function discoverDevices(event) {
+        event.preventDefault();
+        
+        // Show discovery modal
+        document.getElementById('discoveryOverlay').style.display = 'block';
+        document.getElementById('discoveryModal').style.display = 'block';
+        
+        try {
+            const response = await fetch('/discover_devices', {
+                method: 'POST'
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                const deviceList = document.getElementById('deviceList');
+                const deviceOptions = document.getElementById('deviceOptions');
+                const discoveryStatus = document.getElementById('discoveryStatus');
+                
+                deviceOptions.innerHTML = '';
+                
+                if (result.devices.length === 0) {
+                    discoveryStatus.textContent = 'No devices found';
+                    const closeButton = document.createElement('button');
+                    closeButton.textContent = 'Close';
+                    closeButton.onclick = hideDiscovery;
+                    closeButton.style.marginTop = '10px';
+                    discoveryStatus.appendChild(document.createElement('br'));
+                    discoveryStatus.appendChild(closeButton);
+                    return;
+                }
+                
+                discoveryStatus.style.display = 'none';
+                deviceList.style.display = 'block';
+                
+                result.devices.forEach(device => {
+                    const button = document.createElement('button');
+                    button.textContent = `${device.devtype} (${device.host})`;
+                    button.onclick = () => selectDevice(device);
+                    button.style.margin = '5px';
+                    deviceOptions.appendChild(button);
+                });
+            } else {
+                showStatus(result.message, false);
+            }
+        } catch (error) {
+            showStatus('Could not contact server', false);
+        }
+    }
+
+    function selectDevice(device) {
+        // Create form data
+        const formData = new FormData();
+        formData.append('type', 'device');
+        formData.append('devtype', device.devtype);
+        formData.append('host', device.host);
+        formData.append('mac', device.mac);
+        formData.append('frequency', '433.92'); // Default frequency
+        
+        // Send update request
+        fetch('/update_data', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(result => {
+            hideDiscovery();
+            if (result.success) {
+                showStatus('Device updated successfully', true);
+                // Reload page after a short delay
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showStatus(result.message || 'Failed to update device', false);
+            }
+        })
+        .catch(error => {
+            hideDiscovery();
+            showStatus('Failed to update device settings', false);
+            console.error(error);
+        });
+    }
+
+    function hideDiscovery() {
+        document.getElementById('discoveryOverlay').style.display = 'none';
+        document.getElementById('discoveryModal').style.display = 'none';
+        // Reset the discovery status to its original state
+        const discoveryStatus = document.getElementById('discoveryStatus');
+        discoveryStatus.textContent = 'Scanning network...';
+        discoveryStatus.style.display = 'block';
+        document.getElementById('deviceList').style.display = 'none';
     }
     </script>
 </body>

@@ -25,6 +25,7 @@
     <div class="section">
         <h2>Add New Job</h2>
         <form action="/add_job" method="post">
+            <input type="hidden" name="original_name" value="">
             <label for="name">Name:</label>
             <input type="text" name="name" required>
             
@@ -59,7 +60,7 @@
                 {% endfor %}
             </select><br>
 
-            <button type="submit">Add Job</button>
+            <button type="submit" id="submitButton">Add Job</button>
         </form>
     </div>
 
@@ -124,8 +125,9 @@
 
             // Fill the form with job data
             const form = document.querySelector('form');
+            form.original_name.value = job.name;  // Set the original name
             form.name.value = job.name;
-            form.enabled.checked = job.enabled !== false;  // Default to true if not set
+            form.enabled.checked = job.enabled !== false;
             form.time.value = job.time;
             form.weekday.checked = job.parameters.weekday;
             form.weekend.checked = job.parameters.weekend;
@@ -134,6 +136,16 @@
             // Update Chosen dropdowns
             $(form.action1).val(job.parameters.action1).trigger('chosen:updated');
             $(form.action2).val(job.parameters.action2).trigger('chosen:updated');
+
+            // Change button text to "Update Job"
+            document.getElementById('submitButton').textContent = 'Update Job';
+
+            // Add event listener to reset button text after form submission
+            form.addEventListener('submit', function() {
+                setTimeout(() => {
+                    document.getElementById('submitButton').textContent = 'Add Job';
+                }, 100);
+            }, { once: true });  // Remove listener after first execution
 
             // Scroll to form
             form.scrollIntoView({ behavior: 'smooth' });

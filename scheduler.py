@@ -29,8 +29,10 @@ class Scheduler:
                     settings = item['settings']
                     devtype = int(settings['devtype'], 0)
                     host = settings['host']
-                    mac = bytearray.fromhex(settings['mac'])
+                    # Clean the MAC address string before converting to hex
+                    mac_str = settings['mac'].replace(':', '').strip()
                     try:
+                        mac = bytearray.fromhex(mac_str)
                         self.device = broadlink.gendevice(devtype, (host, DEFAULT_PORT), mac)
                         self.device.auth()
                     except Exception as e:

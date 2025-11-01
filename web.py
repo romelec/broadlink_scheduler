@@ -1,6 +1,8 @@
+import socket
 from flask import Flask, request, jsonify, render_template, redirect, url_for
 import json, time
 import threading
+import broadlink
 
 class web:
     def __init__(self, data_file, jobs_file, device, job_update_cb, update_device_cb):
@@ -22,6 +24,7 @@ class web:
         self.app.route('/add_job', methods=['POST'])(self.add_job)
         self.app.route('/remove_job', methods=['POST'])(self.remove_job)
         self.app.route('/settings')(self.settings)
+        self.app.route('/discover_devices', methods=['POST'])(self.discover_devices)
         self.app.route('/update_data', methods=['POST'])(self.update_data)
         self.app.route('/add_data', methods=['POST'])(self.add_data)
         self.app.route('/remove_data', methods=['POST'])(self.remove_data)
@@ -35,6 +38,7 @@ class web:
 
     def web_thread(self):
         self.app.run(host='::', port=8080)
+        #self.app.run(host='0.0.0.0', port=8080)
 
     def start(self):
         thread = threading.Thread(target=self.web_thread)
@@ -54,46 +58,46 @@ class web:
         return render_template('index.html', jobs=jobs_data, commands=commands)
 
     def add_job(self):
-        print(f"request {request.form}", flush=True)
-        print(f"check weekday {request.form.getlist('weekday')}-{bool(request.form.getlist('weekday'))}, weekend {request.form.getlist('weekend')}-{bool(request.form.getlist('weekend'))}", flush=True)
-        # Parse job details from the request
-        job_name = request.form['name']
-        job_time = request.form['time']
-        enabled = bool(request.form.getlist('enabled'))
-        job_parameters = {
-            "action1": request.form.getlist('action1'),
-            "delay": int(request.form['delay']),
-            "action2": request.form.getlist('action2'),
-            "weekday": bool(request.form.getlist('weekday')),
-            "weekend": bool(request.form.getlist('weekend')),
-        }
+        try:
+            original_name = request.form.get('original_name')
+            new_name = request.form['name']
+            
+            delay = request.form.get('delay', '0')
+            delay = int(delay) if delay else 0
 
-        # Check if a job with the same name already exists
-        existing_job = next((job for job in self.jobs_data if job['name'] == job_name), None)
-
-        if existing_job:
-            # If the job exists, update its time and parameters
-            existing_job['time'] = job_time
-            existing_job['enabled'] = enabled
-            existing_job['parameters'] = job_parameters
-        else:
-            # If the job does not exist, add it to the jobs_data list
-            new_job = {
-                'name': job_name,
-                'time': job_time,
-                'enabled': enabled,
-                'parameters': job_parameters
+            job = {
+                "name": new_name,
+                "time": request.form['time'],
+                "enabled": 'enabled' in request.form,
+                "parameters": {
+                    "action1": request.form.getlist('action1'),
+                    "delay": delay,
+                    "action2": request.form.getlist('action2'),
+                    "weekday": 'weekday' in request.form,
+                    "weekend": 'weekend' in request.form
+                }
             }
-            self.jobs_data.append(new_job)
 
-        # Save the updated jobs to the JSON file
-        self.save_jobs_to_json()
+            # If editing an existing job, update it in place
+            if original_name:
+                for i, existing_job in enumerate(self.jobs_data):
+                    if existing_job['name'] == original_name:
+                        self.jobs_data[i] = job
+                        break
+            else:
+                # Add new job at the end
+                self.jobs_data.append(job)
+        
+            # Save the updated jobs to the JSON file
+            self.save_jobs_to_json()
 
-        if self.job_update_cb is not None:
-            self.job_update_cb()
+            if self.job_update_cb is not None:
+                self.job_update_cb()
 
-        # Redirect to the home page after adding the job
-        return redirect(url_for('home'))
+            return redirect(url_for('home'))
+        except Exception as e:
+            print(f"Error adding/updating job: {e}", flush=True)
+            return redirect(url_for('home'))
 
     def remove_job(self):
         # Parse the job name from the request
@@ -131,42 +135,99 @@ class web:
         with open(self.data_file, 'r') as f:
             data = json.load(f)
         return render_template('settings.html', data=data)
+    
+    def discover_devices(self):
+        try:
+            print("Starting device discovery...", flush=True)
+            
+            # Try discovering on local subnet
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+            print(f"Local IP: {local_ip}", flush=True)
+            devices = broadlink.discover(timeout=5, local_ip_address=local_ip)
+            device_list = []
+            print(f"Found {len(devices)} devices", flush=True)
+            
+            for device in devices:
+                try:
+                    print(f"Found device: type={hex(device.devtype)}, host={device.host[0]}", flush=True)
+                    device_list.append({
+                        'devtype': hex(device.devtype),
+                        'host': device.host[0],
+                        'mac': ':'.join(format(x, '02x') for x in device.mac)
+                    })
+                except Exception as e:
+                    print(f"Error processing device: {e}", flush=True)
+        
+            # If no devices found, add the currently connected device
+            if len(device_list) == 0 and self.device is not None:
+                print("No new devices found, adding current device", flush=True)
+                device_list.append({
+                    'devtype': hex(self.device.devtype),
+                    'host': self.device.host[0],
+                    'mac': ':'.join(format(x, '02x') for x in self.device.mac)
+                })
+            
+            return jsonify({
+                'success': True,
+                'devices': device_list
+            })
+        except Exception as e:
+            print(f"Discovery error: {str(e)}", flush=True)
+            return jsonify({
+                'success': False,
+                'message': str(e)
+            })
 
     def update_data(self):
-        data_name = request.form.get('name', '')
-        data_type = request.form.get('type', '')
-        
-        with open(self.data_file, 'r') as f:
-            data = json.load(f)
-        
-        # Update existing data entry
-        for entry in data:
-            if entry.get('type') == data_type:
-                if data_type == 'command' and data_name == entry['name']:
-                    entry['data'] = request.form['data']
-                    break
-                elif data_type == 'device':
-                    entry['settings'] = {
-                        'devtype': request.form['devtype'],
-                        'host': request.form['host'],
-                        'mac': request.form['mac'],
-                        'frequency': float(request.form['frequency'])
-                    }
-                    break
-                elif data_type == 'location':
-                    entry['settings'] = {
-                        'timezone': request.form['timezone'],
-                        'lat': float(request.form['lat']),
-                        'long': float(request.form['long'])
-                    }
-                    break
-        
-        with open(self.data_file, 'w') as f:
-            json.dump(data, f, indent=4)
+        try:
+            data_name = request.form.get('name', '')
+            data_type = request.form.get('type', '')
+            
+            with open(self.data_file, 'r') as f:
+                data = json.load(f)
+            
+            # Update existing data entry
+            for entry in data:
+                if entry.get('type') == data_type:
+                    if data_type == 'command' and data_name == entry['name']:
+                        entry['data'] = request.form['data']
+                        break
+                    elif data_type == 'device':
+                        entry['settings'] = {
+                            'devtype': request.form['devtype'],
+                            'host': request.form['host'],
+                            'mac': request.form['mac'],
+                            'frequency': float(request.form['frequency'])
+                        }
+                        break
+                    elif data_type == 'location':
+                        entry['settings'] = {
+                            'timezone': request.form['timezone'],
+                            'lat': float(request.form['lat']),
+                            'long': float(request.form['long'])
+                        }
+                        break
+            
+            with open(self.data_file, 'w') as f:
+                json.dump(data, f, indent=4)
 
-        if data_type == 'device' and self.update_device_cb is not None:
-            self.device = self.update_device_cb()
-        return redirect(url_for('settings'))
+            if data_type == 'device' and self.update_device_cb is not None:
+                self.device = self.update_device_cb()
+                
+            # Check if this is an AJAX request
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': True, 'message': 'Settings updated successfully'})
+            else:
+                return redirect(url_for('settings'))
+                
+        except Exception as e:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'message': str(e)})
+            else:
+                return redirect(url_for('settings'))
 
     def add_data(self):
         data_name = request.form['name']

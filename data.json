@@ -64,7 +64,7 @@
         "settings": {
             "devtype": "0x5213",
             "host": "192.168.0.17",
-            "mac": "ec0baea05afb",
+            "mac": "ec:0b:ae:a0:5a:fb",
             "frequency": 433.92
         }
     },
